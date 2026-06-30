@@ -15,6 +15,14 @@ View your app in AI Studio: https://ai.studio/apps/drive/1ItDgZ0i3GMH8LO5CEFWGEu
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Run the app:
    `npm run dev`
+3. Open the app and paste your own OpenRouter API key in the **OpenRouter API Key (BYOK)** panel
+4. (Optional) Set a different OpenRouter model id, default is `openai/gpt-4o-mini`
+
+## Security model (GitHub Pages friendly)
+
+- This project uses **BYOK (Bring Your Own Key)**.
+- No project-level model API key is embedded during build.
+- Each user enters their own OpenRouter API key in the UI.
+- The key is stored only in browser storage on that user device (session or local, based on user choice).
