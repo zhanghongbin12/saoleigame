@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GameStatus, Difficulty, CellData, HintResponse } from './types';
 import { DIFFICULTY_CONFIG } from './constants';
 import { createEmptyBoard, placeMines, revealCell, checkWin } from './services/gameLogic';
-import { getOpenRouterHint } from './services/openRouterService';
+import { getSmartHint } from './services/hintService';
 import Board from './components/Board';
 import { Trophy, Clock, Flag, RefreshCw, Cpu, AlertCircle, KeyRound } from 'lucide-react';
 
@@ -12,6 +12,11 @@ const LOCAL_KEY_STORAGE = 'openrouter_api_key';
 const SESSION_KEY_STORAGE = 'openrouter_api_key_session';
 const LOCAL_MODEL_STORAGE = 'openrouter_model';
 const SESSION_MODEL_STORAGE = 'openrouter_model_session';
+const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  [Difficulty.BEGINNER]: '初级',
+  [Difficulty.INTERMEDIATE]: '中级',
+  [Difficulty.EXPERT]: '高级',
+};
 
 const App: React.FC = () => {
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.BEGINNER);
@@ -118,17 +123,21 @@ const App: React.FC = () => {
     
     setBoard(newBoard);
     setFlagCount(prev => isNowFlagged ? prev + 1 : prev - 1);
+
+    if (hint && hint.x === x && hint.y === y) {
+      setHint(null);
+    }
   };
 
   const saveApiKey = () => {
     const trimmedKey = apiKeyInput.trim();
     const trimmedModel = modelInput.trim();
     if (!trimmedKey) {
-      setHintError('Please enter a valid OpenRouter API key.');
+      setHintError('请输入有效的 OpenRouter API 密钥。');
       return;
     }
     if (!trimmedModel) {
-      setHintError('Please enter a valid OpenRouter model id.');
+      setHintError('请输入有效的 OpenRouter 模型 ID。');
       return;
     }
 
@@ -157,33 +166,24 @@ const App: React.FC = () => {
     localStorage.removeItem(LOCAL_MODEL_STORAGE);
     sessionStorage.removeItem(SESSION_KEY_STORAGE);
     sessionStorage.removeItem(SESSION_MODEL_STORAGE);
-    setHintError('OpenRouter settings cleared.');
+    setHintError('OpenRouter 设置已清除。');
   };
 
   const requestHint = async () => {
     if (status !== GameStatus.PLAYING) return;
-    if (!apiKey) {
-      setHintError('Set your OpenRouter API key before requesting a hint.');
-      return;
-    }
-    if (!model) {
-      setHintError('Set an OpenRouter model id before requesting a hint.');
-      return;
-    }
-
     setIsHintLoading(true);
     setHintError(null);
     try {
-      const result = await getOpenRouterHint(board, apiKey, model);
+      const result = await getSmartHint(board, apiKey, model);
       if (!result) {
-        setHintError('OpenRouter did not return a valid hint. Try another model.');
+        setHintError('没有找到有效提示，请多翻开一些格子或尝试其他模型。');
         return;
       }
       setHint(result);
     } catch (error) {
       console.error('OpenRouter Hint Error:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      setHintError(`OpenRouter request failed: ${message}`);
+      const message = error instanceof Error ? error.message : '未知错误';
+      setHintError(`OpenRouter 请求失败：${message}`);
     } finally {
       setIsHintLoading(false);
     }
@@ -196,8 +196,8 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col items-center py-10 px-4">
       {/* Header */}
       <div className="max-w-4xl w-full flex flex-col items-center mb-10 gap-6">
-        <h1 className="text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent text-center">
-          AI MINESWEEPER
+        <h1 className="text-5xl font-extrabold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent text-center">
+          AI 扫雷
         </h1>
 
         <div className="flex flex-wrap items-center justify-center gap-4 bg-slate-900/50 p-2 rounded-2xl border border-slate-800">
@@ -211,7 +211,7 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
               }`}
             >
-              {diff}
+              {DIFFICULTY_LABELS[diff]}
             </button>
           ))}
         </div>
@@ -223,8 +223,8 @@ const App: React.FC = () => {
         {/* Sidebar Info */}
         <div className="w-full lg:w-64 flex flex-col gap-4">
           <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 shadow-xl space-y-3">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <KeyRound size={12} /> OpenRouter API Key (BYOK)
+            <label className="text-xs font-bold text-slate-500 flex items-center gap-2">
+              <KeyRound size={12} /> OpenRouter API 密钥（自备）
             </label>
             <input
               type="password"
@@ -246,31 +246,31 @@ const App: React.FC = () => {
                 checked={rememberApiKey}
                 onChange={(event) => setRememberApiKey(event.target.checked)}
               />
-              Remember on this browser
+              在此浏览器记住
             </label>
             <div className="flex gap-2">
               <button
                 onClick={saveApiKey}
                 className="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
               >
-                Save Key
+                保存密钥
               </button>
               <button
                 onClick={clearApiKey}
                 className="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
               >
-                Clear
+                清除
               </button>
             </div>
             <p className="text-[10px] text-slate-500">
-              {hasApiKey ? `Ready: ${model}` : 'Key is required to enable AI hints.'}
+              {hasApiKey ? `已就绪：${model}` : '需要密钥才能启用 AI 提示。'}
             </p>
           </div>
 
           <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-6">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <Clock size={12} /> Time Elapsed
+              <label className="text-xs font-bold text-slate-500 flex items-center gap-2">
+                <Clock size={12} /> 用时
               </label>
               <div className="text-3xl font-mono text-blue-400 tabular-nums">
                 {String(Math.floor(timer / 60)).padStart(2, '0')}:{String(timer % 60).padStart(2, '0')}
@@ -278,8 +278,8 @@ const App: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <Flag size={12} /> Flags / Mines
+              <label className="text-xs font-bold text-slate-500 flex items-center gap-2">
+                <Flag size={12} /> 标记 / 地雷
               </label>
               <div className="text-3xl font-mono text-rose-400 tabular-nums">
                 {flagCount} <span className="text-slate-700">/</span> {settings.mines}
@@ -291,24 +291,24 @@ const App: React.FC = () => {
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all border border-slate-700"
             >
               <RefreshCw size={18} className={status === GameStatus.IDLE ? '' : 'animate-spin-once'} />
-              Restart
+              重新开始
             </button>
           </div>
 
-          <button
-            onClick={requestHint}
-            disabled={status !== GameStatus.PLAYING || isHintLoading || !hasApiKey}
-            className={`
-              w-full flex flex-col items-center gap-2 p-6 rounded-2xl border transition-all duration-300
-              ${status === GameStatus.PLAYING && !isHintLoading && hasApiKey
+            <button
+              onClick={requestHint}
+              disabled={status !== GameStatus.PLAYING || isHintLoading}
+              className={`
+                w-full flex flex-col items-center gap-2 p-6 rounded-2xl border transition-all duration-300
+              ${status === GameStatus.PLAYING && !isHintLoading
                 ? 'bg-gradient-to-br from-indigo-900/40 to-blue-900/40 border-blue-500/30 hover:border-blue-400 text-blue-100 shadow-lg shadow-blue-900/20' 
                 : 'bg-slate-900/30 border-slate-800 text-slate-600 cursor-not-allowed'}
             `}
           >
             <Cpu size={32} className={`${isHintLoading ? 'animate-pulse text-blue-400' : ''}`} />
             <div className="text-center">
-              <div className="font-bold">Ask AI (OpenRouter)</div>
-              <div className="text-[10px] opacity-70 uppercase font-bold tracking-wider">Analyze Board</div>
+              <div className="font-bold">智能提示</div>
+              <div className="text-[10px] opacity-70 font-bold">{isHintLoading ? '正在分析' : '本地优先，AI 兜底'}</div>
             </div>
           </button>
 
@@ -316,9 +316,11 @@ const App: React.FC = () => {
             <div className="bg-blue-950/40 border border-blue-500/20 p-4 rounded-2xl text-sm text-blue-200 animate-in fade-in slide-in-from-top-4 duration-300">
               <div className="font-bold flex items-center gap-2 mb-2">
                 <AlertCircle size={16} /> 
-                AI Hint
+                AI 提示
               </div>
-              <p className="opacity-80">Suggesting ({hint.x}, {hint.y}): {hint.reason}</p>
+              <p className="opacity-80">
+                {hint.action === 'flag' ? '建议标记' : '建议点击'}（{hint.x}，{hint.y}）：{hint.reason}
+              </p>
             </div>
           )}
 
@@ -330,15 +332,15 @@ const App: React.FC = () => {
         </div>
 
         {/* The Board */}
-        <div className="flex-1 flex flex-col items-center overflow-auto max-w-full">
+        <div className="flex-1 flex flex-col items-center overflow-x-auto overflow-y-visible max-w-full pt-2">
           {status === GameStatus.WON && (
-            <div className="mb-4 p-4 bg-emerald-950/50 border border-emerald-500/50 rounded-2xl text-emerald-400 font-bold flex items-center gap-3 animate-bounce">
-              <Trophy size={24} /> MISSION ACCOMPLISHED! YOU WON!
+            <div className="relative z-10 mb-4 w-fit max-w-full p-4 bg-emerald-950/50 border border-emerald-500/50 rounded-2xl text-emerald-400 font-bold flex items-center gap-3">
+              <Trophy size={24} /> 任务完成，成功排雷！
             </div>
           )}
           {status === GameStatus.LOST && (
             <div className="mb-4 p-4 bg-rose-950/50 border border-rose-500/50 rounded-2xl text-rose-400 font-bold flex items-center gap-3">
-              <AlertCircle size={24} /> KABOOM! MISSION FAILED.
+              <AlertCircle size={24} /> 踩到地雷，任务失败。
             </div>
           )}
           
@@ -353,8 +355,8 @@ const App: React.FC = () => {
             
             {status === GameStatus.IDLE && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-sm rounded-xl pointer-events-none transition-opacity group-hover:opacity-0">
-                <div className="text-2xl font-black text-slate-300 animate-pulse">CLICK ANYWHERE TO START</div>
-                <div className="text-xs text-slate-500 mt-2 font-mono uppercase tracking-widest">Random Minefield generation enabled</div>
+                <div className="text-2xl font-black text-slate-300 animate-pulse">点击任意位置开始</div>
+                <div className="text-xs text-slate-500 mt-2 font-mono">已启用随机雷区生成</div>
               </div>
             )}
           </div>
@@ -362,7 +364,7 @@ const App: React.FC = () => {
       </div>
 
       <footer className="mt-auto pt-10 pb-6 text-slate-600 text-sm">
-        Powered by OpenRouter & React 18
+        由 OpenRouter 与 React 18 驱动
       </footer>
     </div>
   );

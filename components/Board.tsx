@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CellData } from '../types';
+import { CellData, HintResponse } from '../types';
 import Cell from './Cell';
 
 interface BoardProps {
@@ -8,7 +8,7 @@ interface BoardProps {
   onCellClick: (x: number, y: number) => void;
   onCellContextMenu: (x: number, y: number) => void;
   gameOver: boolean;
-  hint: { x: number, y: number } | null;
+  hint: HintResponse | null;
 }
 
 const Board: React.FC<BoardProps> = ({ board, onCellClick, onCellContextMenu, gameOver, hint }) => {
@@ -33,6 +33,7 @@ const Board: React.FC<BoardProps> = ({ board, onCellClick, onCellContextMenu, ga
             }}
             gameOver={gameOver}
             isHinted={hint?.x === x && hint?.y === y}
+            hintAction={hint?.action}
           />
         ))
       )}

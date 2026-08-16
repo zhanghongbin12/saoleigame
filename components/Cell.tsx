@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CellData } from '../types';
+import { CellData, HintResponse } from '../types';
 import { COLORS } from '../constants';
 
 interface CellProps {
@@ -9,9 +9,10 @@ interface CellProps {
   onContextMenu: (e: React.MouseEvent) => void;
   gameOver: boolean;
   isHinted?: boolean;
+  hintAction?: HintResponse['action'];
 }
 
-const Cell: React.FC<CellProps> = ({ cell, onClick, onContextMenu, gameOver, isHinted }) => {
+const Cell: React.FC<CellProps> = ({ cell, onClick, onContextMenu, gameOver, isHinted, hintAction }) => {
   const getCellContent = () => {
     if (cell.isFlagged) return '🚩';
     if (!cell.isRevealed) return '';
@@ -20,8 +21,14 @@ const Cell: React.FC<CellProps> = ({ cell, onClick, onContextMenu, gameOver, isH
   };
 
   const getCellStyles = () => {
+    const hintStyles = isHinted
+      ? hintAction === 'flag'
+        ? 'ring-2 ring-rose-400 animate-pulse'
+        : 'ring-2 ring-blue-400 animate-pulse'
+      : '';
+
     if (!cell.isRevealed) {
-      return `bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border-t-2 border-l-2 border-slate-700 border-b-2 border-r-2 border-slate-900 ${isHinted ? 'ring-2 ring-blue-400 animate-pulse' : ''}`;
+      return `bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border-t-2 border-l-2 border-slate-700 border-b-2 border-r-2 border-slate-900 ${hintStyles}`;
     }
     if (cell.isMine) {
       return 'bg-rose-900/40 border-slate-800 shadow-inner';

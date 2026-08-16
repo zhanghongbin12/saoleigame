@@ -1,5 +1,5 @@
 {
-  "name": "Copy of Gemini Minesweeper Pro",
-  "description": "A high-performance, aesthetically pleasing Minesweeper game featuring an integrated AI assistant using Gemini to provide strategic hints and board analysis.",
+  "name": "AI 扫雷",
+  "description": "一款高性能、视觉精致的扫雷游戏，集成 AI 助手用于提供策略提示和棋盘分析。",
   "requestFramePermissions": []
 }

@@ -28,6 +28,7 @@ export interface DifficultySettings {
 }
 
 export interface HintResponse {
+  action: 'reveal' | 'flag';
   x: number;
   y: number;
   reason: string;
