@@ -1,5 +1,5 @@
 {
-  "name": "AI 扫雷",
+  "name": "探雷特工",
   "description": "一款高性能、视觉精致的扫雷游戏，集成 AI 助手用于提供策略提示和棋盘分析。",
   "requestFramePermissions": []
 }

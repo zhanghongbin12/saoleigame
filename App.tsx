@@ -1,11 +1,24 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GameStatus, Difficulty, CellData, HintResponse } from './types';
 import { DIFFICULTY_CONFIG } from './constants';
 import { createEmptyBoard, placeMines, revealCell, checkWin } from './services/gameLogic';
 import { getSmartHint } from './services/hintService';
 import Board from './components/Board';
-import { Trophy, Clock, Flag, RefreshCw, Cpu, AlertCircle, KeyRound } from 'lucide-react';
+import {
+  AlertCircle,
+  Clock,
+  Cpu,
+  Flag,
+  KeyRound,
+  RefreshCw,
+  ScanLine,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Trophy,
+  X,
+  Zap,
+} from 'lucide-react';
 
 const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
 const LOCAL_KEY_STORAGE = 'openrouter_api_key';
@@ -32,6 +45,7 @@ const App: React.FC = () => {
   const [modelInput, setModelInput] = useState(DEFAULT_OPENROUTER_MODEL);
   const [rememberApiKey, setRememberApiKey] = useState(false);
   const [hintError, setHintError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const timerRef = useRef<number | null>(null);
 
   const initGame = useCallback(() => {
@@ -45,19 +59,18 @@ const App: React.FC = () => {
   }, [difficulty]);
 
   useEffect(() => {
-    // Only re-init if the board size needs to change due to difficulty
-    // or when explicitly requested.
     initGame();
-  }, [difficulty]);
+  }, [difficulty, initGame]);
 
   useEffect(() => {
     if (status === GameStatus.PLAYING) {
       timerRef.current = window.setInterval(() => {
         setTimer(prev => prev + 1);
       }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
     }
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -85,15 +98,13 @@ const App: React.FC = () => {
     let currentBoard = [...board];
     const settings = DIFFICULTY_CONFIG[difficulty];
 
-    // First move: place mines and ensure safety
     if (status === GameStatus.IDLE) {
       currentBoard = placeMines(currentBoard, settings, x, y);
       setStatus(GameStatus.PLAYING);
     }
 
     if (currentBoard[y][x].isMine) {
-      // Reveal all mines
-      const revealedBoard = currentBoard.map(row => 
+      const revealedBoard = currentBoard.map(row =>
         row.map(cell => cell.isMine ? { ...cell, isRevealed: true } : cell)
       );
       setBoard(revealedBoard);
@@ -103,8 +114,7 @@ const App: React.FC = () => {
 
     const nextBoard = revealCell(currentBoard, x, y);
     setBoard(nextBoard);
-    
-    // Clear hint if revealed
+
     if (hint && hint.x === x && hint.y === y) {
       setHint(null);
     }
@@ -120,7 +130,7 @@ const App: React.FC = () => {
     const newBoard = board.map(row => row.map(cell => ({ ...cell })));
     const isNowFlagged = !newBoard[y][x].isFlagged;
     newBoard[y][x].isFlagged = isNowFlagged;
-    
+
     setBoard(newBoard);
     setFlagCount(prev => isNowFlagged ? prev + 1 : prev - 1);
 
@@ -155,6 +165,7 @@ const App: React.FC = () => {
       localStorage.removeItem(LOCAL_MODEL_STORAGE);
     }
     setHintError(null);
+    setShowSettings(false);
   };
 
   const clearApiKey = () => {
@@ -191,181 +202,270 @@ const App: React.FC = () => {
 
   const settings = DIFFICULTY_CONFIG[difficulty];
   const hasApiKey = apiKey.length > 0;
+  const remainingMines = settings.mines - flagCount;
+  const isExpert = difficulty === Difficulty.EXPERT;
+  const statusLabel = status === GameStatus.PLAYING
+    ? '扫描中'
+    : status === GameStatus.WON
+      ? '已通关'
+      : status === GameStatus.LOST
+        ? '警报'
+        : '待启动';
 
   return (
-    <div className="min-h-screen flex flex-col items-center py-10 px-4">
-      {/* Header */}
-      <div className="max-w-4xl w-full flex flex-col items-center mb-10 gap-6">
-        <h1 className="text-5xl font-extrabold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent text-center">
-          AI 扫雷
-        </h1>
+    <div className="min-h-screen relative overflow-hidden px-4 py-6 text-slate-100">
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(45,212,191,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(45,212,191,0.05)_1px,transparent_1px)] bg-[size:44px_44px]" />
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(180deg,rgba(3,7,18,0.12),rgba(3,7,18,0.95))]" />
 
-        <div className="flex flex-wrap items-center justify-center gap-4 bg-slate-900/50 p-2 rounded-2xl border border-slate-800">
-          {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map((diff) => (
-            <button
-              key={diff}
-              onClick={() => setDifficulty(diff)}
-              className={`px-6 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                difficulty === diff 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
-              }`}
-            >
-              {DIFFICULTY_LABELS[diff]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Game Stats & Controls */}
-      <div className="max-w-screen-xl w-full flex flex-col lg:flex-row items-start justify-center gap-8">
-        
-        {/* Sidebar Info */}
-        <div className="w-full lg:w-64 flex flex-col gap-4">
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 shadow-xl space-y-3">
-            <label className="text-xs font-bold text-slate-500 flex items-center gap-2">
-              <KeyRound size={12} /> OpenRouter API 密钥（自备）
-            </label>
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={(event) => setApiKeyInput(event.target.value)}
-              placeholder="sk-or-..."
-              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm outline-none focus:border-blue-500"
-            />
-            <input
-              type="text"
-              value={modelInput}
-              onChange={(event) => setModelInput(event.target.value)}
-              placeholder="openai/gpt-4o-mini"
-              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm outline-none focus:border-blue-500"
-            />
-            <label className="flex items-center gap-2 text-xs text-slate-400">
-              <input
-                type="checkbox"
-                checked={rememberApiKey}
-                onChange={(event) => setRememberApiKey(event.target.checked)}
-              />
-              在此浏览器记住
-            </label>
-            <div className="flex gap-2">
-              <button
-                onClick={saveApiKey}
-                className="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-              >
-                保存密钥
-              </button>
-              <button
-                onClick={clearApiKey}
-                className="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
-              >
-                清除
-              </button>
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-48px)] max-w-[1500px] flex-col">
+        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.16)]">
+              <Zap size={28} />
             </div>
-            <p className="text-[10px] text-slate-500">
-              {hasApiKey ? `已就绪：${model}` : '需要密钥才能启用 AI 提示。'}
-            </p>
+            <div>
+              <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.32em] text-cyan-200/80">
+                AI Mine Lab
+                <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.9)]" />
+              </div>
+              <h1 className="text-3xl font-black text-white sm:text-5xl">
+                探雷特工
+              </h1>
+            </div>
           </div>
 
-          <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-6">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 flex items-center gap-2">
-                <Clock size={12} /> 用时
-              </label>
-              <div className="text-3xl font-mono text-blue-400 tabular-nums">
-                {String(Math.floor(timer / 60)).padStart(2, '0')}:{String(timer % 60).padStart(2, '0')}
-              </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex rounded-2xl border border-white/10 bg-black/30 p-1.5 shadow-2xl shadow-black/30 backdrop-blur">
+              {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map((diff) => (
+                <button
+                  key={diff}
+                  onClick={() => setDifficulty(diff)}
+                  className={`min-w-20 rounded-xl px-4 py-2 text-sm font-black transition-all duration-200 sm:min-w-24 ${
+                    difficulty === diff
+                      ? 'bg-amber-300 text-slate-950 shadow-[0_0_22px_rgba(252,211,77,0.3)]'
+                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  {DIFFICULTY_LABELS[diff]}
+                </button>
+              ))}
             </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 flex items-center gap-2">
-                <Flag size={12} /> 标记 / 地雷
-              </label>
-              <div className="text-3xl font-mono text-rose-400 tabular-nums">
-                {flagCount} <span className="text-slate-700">/</span> {settings.mines}
-              </div>
-            </div>
-
             <button
-              onClick={initGame}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all border border-slate-700"
+              onClick={() => setShowSettings(prev => !prev)}
+              className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:border-cyan-200/50 hover:bg-cyan-300/20"
             >
-              <RefreshCw size={18} className={status === GameStatus.IDLE ? '' : 'animate-spin-once'} />
-              重新开始
+              {showSettings ? <X size={18} /> : <Settings size={18} />}
+              AI 设置
             </button>
           </div>
+        </header>
+
+        <main className="grid flex-1 gap-6 md:grid-cols-[320px_minmax(0,1fr)] md:items-start">
+          <aside className="flex w-full flex-col gap-4">
+            <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200/70">Mission HUD</div>
+                  <div className="mt-1 text-2xl font-black text-white">{statusLabel}</div>
+                </div>
+                <div className={`rounded-full px-3 py-1 text-xs font-black ${
+                  status === GameStatus.LOST
+                    ? 'bg-rose-400/15 text-rose-200'
+                    : status === GameStatus.WON
+                      ? 'bg-emerald-400/15 text-emerald-200'
+                      : 'bg-cyan-400/15 text-cyan-200'
+                }`}>
+                  {settings.cols} x {settings.rows}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-cyan-200/10 bg-cyan-200/5 p-4">
+                  <label className="mb-2 flex items-center gap-2 text-xs font-black text-cyan-100/70">
+                    <Clock size={14} /> 用时
+                  </label>
+                  <div className="font-mono text-4xl font-black tabular-nums text-cyan-200">
+                    {String(Math.floor(timer / 60)).padStart(2, '0')}:{String(timer % 60).padStart(2, '0')}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-rose-200/10 bg-rose-200/5 p-4">
+                  <label className="mb-2 flex items-center gap-2 text-xs font-black text-rose-100/70">
+                    <Flag size={14} /> 剩余雷
+                  </label>
+                  <div className="font-mono text-4xl font-black tabular-nums text-rose-200">
+                    {remainingMines}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm font-bold text-slate-300">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-xs text-slate-500">已标记</div>
+                  <div className="mt-1 text-2xl text-amber-200">{flagCount}</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-xs text-slate-500">总地雷</div>
+                  <div className="mt-1 text-2xl text-white">{settings.mines}</div>
+                </div>
+              </div>
+
+              <button
+                onClick={initGame}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-200/30 bg-amber-300 px-4 py-3 font-black text-slate-950 shadow-[0_0_28px_rgba(252,211,77,0.18)] transition hover:-translate-y-0.5 hover:bg-amber-200 active:translate-y-0"
+              >
+                <RefreshCw size={20} />
+                重新开始
+              </button>
+            </section>
 
             <button
               onClick={requestHint}
               disabled={status !== GameStatus.PLAYING || isHintLoading}
               className={`
-                w-full flex flex-col items-center gap-2 p-6 rounded-2xl border transition-all duration-300
-              ${status === GameStatus.PLAYING && !isHintLoading
-                ? 'bg-gradient-to-br from-indigo-900/40 to-blue-900/40 border-blue-500/30 hover:border-blue-400 text-blue-100 shadow-lg shadow-blue-900/20' 
-                : 'bg-slate-900/30 border-slate-800 text-slate-600 cursor-not-allowed'}
-            `}
-          >
-            <Cpu size={32} className={`${isHintLoading ? 'animate-pulse text-blue-400' : ''}`} />
-            <div className="text-center">
-              <div className="font-bold">智能提示</div>
-              <div className="text-[10px] opacity-70 font-bold">{isHintLoading ? '正在分析' : '本地优先，AI 兜底'}</div>
-            </div>
-          </button>
-
-          {hint && (
-            <div className="bg-blue-950/40 border border-blue-500/20 p-4 rounded-2xl text-sm text-blue-200 animate-in fade-in slide-in-from-top-4 duration-300">
-              <div className="font-bold flex items-center gap-2 mb-2">
-                <AlertCircle size={16} /> 
-                AI 提示
+                group relative overflow-hidden rounded-3xl border p-5 text-left transition-all duration-300
+                ${status === GameStatus.PLAYING && !isHintLoading
+                  ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-50 shadow-[0_0_34px_rgba(16,185,129,0.12)] hover:-translate-y-0.5 hover:border-emerald-200/60'
+                  : 'cursor-not-allowed border-white/10 bg-slate-950/50 text-slate-500'}
+              `}
+            >
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-200/60 to-transparent" />
+              <div className="flex items-center gap-4">
+                <div className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-200/20 bg-emerald-200/10">
+                  {isHintLoading ? <ScanLine size={28} className="animate-pulse" /> : <Cpu size={28} />}
+                </div>
+                <div>
+                  <div className="text-xl font-black">下一步建议</div>
+                  <div className="text-xs font-bold opacity-70">{isHintLoading ? '正在分析下一步' : '先本地分析，再用 AI'}</div>
+                </div>
               </div>
-              <p className="opacity-80">
-                {hint.action === 'flag' ? '建议标记' : '建议点击'}（{hint.x}，{hint.y}）：{hint.reason}
-              </p>
-            </div>
-          )}
+            </button>
 
-          {hintError && (
-            <div className="bg-rose-950/40 border border-rose-500/20 p-4 rounded-2xl text-sm text-rose-200">
-              {hintError}
-            </div>
-          )}
-        </div>
-
-        {/* The Board */}
-        <div className="flex-1 flex flex-col items-center overflow-x-auto overflow-y-visible max-w-full pt-2">
-          {status === GameStatus.WON && (
-            <div className="relative z-10 mb-4 w-fit max-w-full p-4 bg-emerald-950/50 border border-emerald-500/50 rounded-2xl text-emerald-400 font-bold flex items-center gap-3">
-              <Trophy size={24} /> 任务完成，成功排雷！
-            </div>
-          )}
-          {status === GameStatus.LOST && (
-            <div className="mb-4 p-4 bg-rose-950/50 border border-rose-500/50 rounded-2xl text-rose-400 font-bold flex items-center gap-3">
-              <AlertCircle size={24} /> 踩到地雷，任务失败。
-            </div>
-          )}
-          
-          <div className="relative group">
-            <Board 
-              board={board} 
-              onCellClick={handleCellClick}
-              onCellContextMenu={handleContextMenu}
-              gameOver={status === GameStatus.LOST || status === GameStatus.WON}
-              hint={hint}
-            />
-            
-            {status === GameStatus.IDLE && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-sm rounded-xl pointer-events-none transition-opacity group-hover:opacity-0">
-                <div className="text-2xl font-black text-slate-300 animate-pulse">点击任意位置开始</div>
-                <div className="text-xs text-slate-500 mt-2 font-mono">已启用随机雷区生成</div>
+            {hint && (
+              <div className="rounded-3xl border border-cyan-300/25 bg-cyan-300/10 p-4 text-sm text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.1)]">
+                <div className="mb-2 flex items-center gap-2 font-black">
+                  <Sparkles size={16} />
+                  排雷建议
+                </div>
+                <p className="leading-6 opacity-85">
+                  {hint.action === 'flag' ? '标记' : '点击'}（{hint.x}，{hint.y}）：{hint.reason}
+                </p>
               </div>
             )}
-          </div>
-        </div>
-      </div>
 
-      <footer className="mt-auto pt-10 pb-6 text-slate-600 text-sm">
-        由 OpenRouter 与 React 18 驱动
-      </footer>
+            {hintError && (
+              <div className="rounded-3xl border border-rose-300/25 bg-rose-300/10 p-4 text-sm font-bold text-rose-100">
+                {hintError}
+              </div>
+            )}
+
+            {showSettings && (
+              <section className="rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
+                <div className="mb-4 flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm font-black text-slate-200">
+                    <KeyRound size={16} /> OpenRouter
+                  </label>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${hasApiKey ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-700/70 text-slate-300'}`}>
+                    {hasApiKey ? '已连接' : '未配置'}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  <input
+                    type="password"
+                    value={apiKeyInput}
+                    onChange={(event) => setApiKeyInput(event.target.value)}
+                    placeholder="sk-or-..."
+                    className="w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-300/50 focus:bg-black/50"
+                  />
+                  <input
+                    type="text"
+                    value={modelInput}
+                    onChange={(event) => setModelInput(event.target.value)}
+                    placeholder="openai/gpt-4o-mini"
+                    className="w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-300/50 focus:bg-black/50"
+                  />
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={rememberApiKey}
+                      onChange={(event) => setRememberApiKey(event.target.checked)}
+                      className="h-4 w-4 accent-cyan-300"
+                    />
+                    在此浏览器记住
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={saveApiKey}
+                      className="rounded-2xl bg-cyan-300 px-3 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-200"
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={clearApiKey}
+                      className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm font-black text-slate-200 transition hover:bg-white/[0.1]"
+                    >
+                      清除
+                    </button>
+                  </div>
+                  <p className="truncate text-xs font-bold text-slate-500">
+                    {hasApiKey ? model : '未配置时仍会优先尝试本地推理。'}
+                  </p>
+                </div>
+              </section>
+            )}
+          </aside>
+
+          <section className="flex min-w-0 flex-col items-center">
+            {status === GameStatus.WON && (
+              <div className="mb-4 flex w-fit max-w-full items-center gap-3 rounded-3xl border border-emerald-300/40 bg-emerald-300/10 p-4 font-black text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.16)]">
+                <Trophy size={24} /> 任务完成，成功排雷！
+              </div>
+            )}
+            {status === GameStatus.LOST && (
+              <div className="mb-4 flex w-fit max-w-full items-center gap-3 rounded-3xl border border-rose-300/40 bg-rose-300/10 p-4 font-black text-rose-100 shadow-[0_0_30px_rgba(244,63,94,0.16)]">
+                <AlertCircle size={24} /> 踩到地雷，任务失败。
+              </div>
+            )}
+
+            <div className={`relative w-full overflow-hidden rounded-[2rem] border border-white/10 bg-black/30 p-4 shadow-2xl shadow-black/40 ${isExpert ? '' : 'backdrop-blur-xl'} sm:p-6 ${status === GameStatus.LOST ? 'alarm-shake' : ''}`}>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3 text-sm font-black text-slate-300">
+                  <ShieldCheck className="text-emerald-200" size={20} />
+                  雷区控制台
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-rose-300 shadow-[0_0_14px_rgba(253,164,175,0.9)]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.9)]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.9)]" />
+                </div>
+              </div>
+
+              <div className="relative mx-auto flex w-full justify-center">
+                <Board
+                  board={board}
+                  onCellClick={handleCellClick}
+                  onCellContextMenu={handleContextMenu}
+                  gameOver={status === GameStatus.LOST || status === GameStatus.WON}
+                  hint={hint}
+                />
+
+                {status === GameStatus.IDLE && (
+                  <div className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-slate-950/65 transition-opacity ${isExpert ? '' : 'backdrop-blur-sm'}`}>
+                    <div className="rounded-full border border-cyan-200/25 bg-cyan-200/10 px-5 py-2 text-xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.18)]">
+                      点击开局
+                    </div>
+                    <div className="mt-3 text-xs font-bold uppercase tracking-[0.24em] text-slate-400">Minefield Ready</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <footer className="mt-auto pt-8 pb-2 text-center text-xs font-bold uppercase tracking-[0.24em] text-slate-600">
+          OpenRouter / React / Minesweeper
+        </footer>
+      </div>
     </div>
   );
 };
