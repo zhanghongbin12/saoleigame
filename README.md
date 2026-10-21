@@ -17,7 +17,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1ItDgZ0i3GMH8LO5CEFWGEu
    `npm install`
 2. Run the app:
    `npm run dev`
-3. Open the app and paste your own OpenRouter API key in the **OpenRouter API Key (BYOK)** panel
+3. Open the app and paste your own OpenRouter API key under **AI 设置 → OpenRouter API 密钥**
 4. (Optional) Set a different OpenRouter model id, default is `openai/gpt-4o-mini`
 
 ## Security model (GitHub Pages friendly)
